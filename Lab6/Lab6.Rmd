@@ -1,0 +1,104 @@
+---
+title: 'Lab 06: Income Prediction'
+author: "Benjamin Preston 9029520"
+date: "2024-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(rpart)
+library(tidyverse)
+
+```
+
+## Task 1
+
+```{r}
+
+set.seed(520)
+
+# Load the train and test adult data
+# 
+
+
+
+train.df <- read_table('./Lab6/adult.data', col_names=F)
+test.df <- read_table('./Lab6/adult.test', col_names=F)
+
+names.vt <- c('age', 'workclass', 'fnlwgt', 'education',
+              'education_num', 'marital_status', 'occupation',
+              'relationship', 'race', 'sex', 'capital_gain',
+              'capital_loss', 'hours_per_week', 'native_country',
+              'response')
+
+names(train.df) = names(test.df) = names.vt
+
+summary(train.df)
+
+glimpse(train.df)
+
+table(train.df$capital_gain)
+table(test.df$response)
+
+
+# 1d. Encode the response variable as a binary variable
+# for both train and test.df
+# 
+
+strCleanInt <- function(x) as.integer(str_replace(x, ",$", ""))
+strCleanFact <- function(x) as.factor(str_replace(x, ",$", ""))
+
+train.df <- train.df %>% 
+  mutate(across(starts_with("capital"), strCleanInt),
+         response = ifelse(response == '>50K', 1, 0),
+         across(where(is.character), strCleanFact)
+         )
+
+test.df <- test.df %>% 
+  mutate(across(starts_with("capital"), strCleanInt),
+         education = strCleanFact(education),
+         response = ifelse(response == '>50K', 1, 0),
+         across(where(is.character), strCleanFact)
+         )
+
+
+summary(test.df)
+```
+1e.  Key predictors will include gender, age, education, occupation, and hours per week.  
+
+
+
+## Task 2 Build a Decision Tree
+
+```{r decision}
+
+# 2a. Build a decision tree using the rpart function
+# 
+
+tree <- rpart(response ~ ., data=train.df, method='class')
+
+tree
+
+
+
+plot(tree, margin = 0.5); text(tree, cex=0.6)
+
+names(tree)
+
+tree$variable.importance/sum(tree$variable.importance)
+
+tree$cptable
+
+printcp(tree)
+plotcp(tree)
+
+pred <- xpred.rpart(tree)
+pred
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
