@@ -10,65 +10,57 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(rpart)
 library(tidyverse)
+setwd("/Users/bpreston/Library/CloudStorage/GoogleDrive-bhp1972@gmail.com/My Drive/_bhp1972/Study/Auckland/STAT765/Sandbox765/Lab6")
 
 ```
 
 ## Task 1
 
-```{r}
+```{r data, message = FALSE}
 
 set.seed(520)
 
-# Load the train and test adult data
+# Load the adult data set
 # 
+adult.df <- read_table('adult.data', col_names=F)
 
-
-
-train.df <- read_table('./Lab6/adult.data', col_names=F)
-test.df <- read_table('./Lab6/adult.test', col_names=F)
-
-names.vt <- c('age', 'workclass', 'fnlwgt', 'education',
+# Clean and wrangle data
+# New names for columns in df
+# 
+new_names <- c('age', 'workclass', 'fnlwgt', 'education',
               'education_num', 'marital_status', 'occupation',
               'relationship', 'race', 'sex', 'capital_gain',
               'capital_loss', 'hours_per_week', 'native_country',
               'response')
 
-names(train.df) = names(test.df) = names.vt
+# String cleaning functions and coerce to double / factor
+# 
+strCleanDbl <- function(x) as.double(str_replace(x, ",$", ""))
+strCleanFact <- function(x) as.factor(str_replace(x, ",$", ""))
+
+
+adult.df <- adult.df |> 
+  rename_with(~ new_names, everything()) |> 
+  mutate(across(starts_with("capital"), strCleanDbl),
+         response = ifelse(response == '>50K', 1, 0),
+         across(where(is.character), strCleanFact)
+         )
+
+# Split into separate training and testing data sets
+#
+train_index <- sample(nrow(adult.df), 0.8 * nrow(adult.df)) # 80% for training
+test_index <- setdiff(1:nrow(adult.df), train_index) # 20% for testing
+
+train.df <- adult.df[train_index,]
+test.df <- adult.df[test_index,]
+
+dim(train.df); dim(test.df)
 
 summary(train.df)
 
-glimpse(train.df)
-
-table(train.df$capital_gain)
-table(test.df$response)
-
-
-# 1d. Encode the response variable as a binary variable
-# for both train and test.df
-# 
-
-strCleanInt <- function(x) as.integer(str_replace(x, ",$", ""))
-strCleanFact <- function(x) as.factor(str_replace(x, ",$", ""))
-
-train.df <- train.df %>% 
-  mutate(across(starts_with("capital"), strCleanInt),
-         response = ifelse(response == '>50K', 1, 0),
-         across(where(is.character), strCleanFact)
-         )
-
-test.df <- test.df %>% 
-  mutate(across(starts_with("capital"), strCleanInt),
-         education = strCleanFact(education),
-         response = ifelse(response == '>50K', 1, 0),
-         across(where(is.character), strCleanFact)
-         )
-
-
-summary(test.df)
 ```
+
 1e.  Key predictors will include gender, age, education, occupation, and hours per week.  
-
-
 
 ## Task 2 Build a Decision Tree
 
@@ -77,28 +69,32 @@ summary(test.df)
 # 2a. Build a decision tree using the rpart function
 # 
 
-tree <- rpart(response ~ ., data=train.df, method='class')
+tree <- rpart(response ~ ., data=train.df, method='class', parms = list(split = "surrogate"))
 
-tree
+# I have included a "surrogate" parameter here to specify that surrogate splits should be used
+# When a primary split is missing, surrogate splits are used to determine the best split
+# This happens in the (randomly sampled) test data where there is only one instance of 
+# a particular value of a variable (native country = "Holand-Netherlands"))  
 
+summary(tree)
 
+plot(tree, margin = 0.1); text(tree, cex=0.5)
 
-plot(tree, margin = 0.5); text(tree, cex=0.6)
-
-names(tree)
-
-tree$variable.importance/sum(tree$variable.importance)
-
-tree$cptable
+# Variable importance
+# 
+(tree$variable.importance)
 
 printcp(tree)
 plotcp(tree)
 
-pred <- xpred.rpart(tree)
-pred
+pred_train <- predict(tree, newdata=train.df[,-15], type='class')
+table(actual = train.df$response, predicted = pred_train)
+sum(train.df$response == pred_train) / nrow(train.df)
+
+pred_test <- predict(tree, newdata=test.df[,-15], type='class')
+table(actual = test.df$response, predicted = pred_test)
+sum(test.df$response == pred_test) / nrow(test.df)
 
 
 
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
